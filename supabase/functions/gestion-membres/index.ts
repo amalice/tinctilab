@@ -13,12 +13,18 @@
 //   ajouter   { projet_id, email, role }             -> { membre, invite }
 //   modifier  { projet_id, utilisateur_id, role }    -> { ok: true }
 //   retirer   { projet_id, utilisateur_id }          -> { ok: true }
+//   renvoyer_invitation { projet_id, utilisateur_id } -> { ok: true }
+//             (seulement pour un membre qui n'a pas encore choisi son mot de passe)
 //
 // Déploiement : supabase functions deploy gestion-membres
 // Variables fournies automatiquement par Supabase : SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
 // Variables optionnelles (supabase secrets set ...) :
 //   ORIGINES_AUTORISEES  ex. "https://amalice.github.io,http://localhost:3000"
 //   URL_APPLICATION      page vers laquelle renvoie l'e-mail d'invitation
+//
+// Les comptes invités reçoivent user_metadata.invitation_en_attente = true :
+// à l'ouverture du lien, l'application leur demande leur nom et un mot de passe,
+// puis remet l'indicateur à false.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
@@ -80,6 +86,14 @@ const nombreAdmins = async (projetId: string): Promise<number> => {
   return count ?? 0;
 };
 
+const redirection = () => {
+  const url = Deno.env.get('URL_APPLICATION');
+  return url ? { redirectTo: url } : {};
+};
+
+const inviter = (email: string) =>
+  admin.auth.admin.inviteUserByEmail(email, { ...redirection(), data: { invitation_en_attente: true } });
+
 // Empêche un projet de se retrouver sans administrateur.
 const protegerDernierAdmin = async (projetId: string, utilisateurId: string, nouveauRole: string | null) => {
   const roleActuel = await roleDe(projetId, utilisateurId);
@@ -133,11 +147,7 @@ Deno.serve(async (req) => {
         let utilisateurId: string | null = idExistant ?? null;
         let invite = false;
         if (!utilisateurId) {
-          const redirection = Deno.env.get('URL_APPLICATION');
-          const { data: invitation, error: erreurInvitation } = await admin.auth.admin.inviteUserByEmail(
-            email,
-            redirection ? { redirectTo: redirection } : undefined,
-          );
+          const { data: invitation, error: erreurInvitation } = await inviter(email);
           if (erreurInvitation) throw erreurInvitation;
           utilisateurId = invitation.user.id;
           invite = true;
@@ -183,6 +193,37 @@ Deno.serve(async (req) => {
         return repondre({ ok: true });
       }
 
+      case 'renvoyer_invitation': {
+        const { utilisateur_id: utilisateurId } = corps;
+        verifier(typeof utilisateurId === 'string' && UUID.test(utilisateurId), 'utilisateur_id invalide');
+
+        const { data: membres, error: erreurMembres } = await admin.rpc('membres_projet', { p_projet_id: projetId });
+        if (erreurMembres) throw erreurMembres;
+        const membre = (membres ?? []).find((m: { utilisateur_id: string }) => m.utilisateur_id === utilisateurId);
+        verifier(membre, 'Cette personne n’est pas membre du projet.', 404);
+        verifier(membre.invitation_en_attente, 'Cette personne a déjà créé son mot de passe.', 409);
+
+        const { data: { user: compte }, error: erreurCompte } = await admin.auth.admin.getUserById(utilisateurId);
+        if (erreurCompte) throw erreurCompte;
+
+        if (!compte?.email_confirmed_at) {
+          // Lien d'invitation jamais ouvert (ou expiré) : nouvelle invitation.
+          const { error: erreurInvitation } = await inviter(membre.email);
+          if (erreurInvitation) throw erreurInvitation;
+        } else {
+          // Lien déjà ouvert mais mot de passe jamais choisi : l'invitation n'est plus
+          // possible (compte confirmé), on envoie un lien de réinitialisation. L'application
+          // voit invitation_en_attente et affiche le même écran (nom + mot de passe).
+          const { error: erreurMeta } = await admin.auth.admin.updateUserById(utilisateurId, {
+            user_metadata: { invitation_en_attente: true },
+          });
+          if (erreurMeta) throw erreurMeta;
+          const { error: erreurLien } = await admin.auth.resetPasswordForEmail(membre.email, redirection());
+          if (erreurLien) throw erreurLien;
+        }
+        return repondre({ ok: true });
+      }
+
       default:
         throw new ErreurHttp(400, 'Action inconnue');
     }
@@ -191,6 +232,10 @@ Deno.serve(async (req) => {
     // ajout simultané de la même personne : bloqué par l'index unique (projet_id, utilisateur_id)
     if ((err as { code?: string })?.code === '23505') {
       return repondre({ erreur: 'Cette personne est déjà membre du projet.' }, 409);
+    }
+    // limite d'envoi d'e-mails de Supabase Auth atteinte
+    if ((err as { status?: number })?.status === 429) {
+      return repondre({ erreur: 'Trop d’e-mails envoyés récemment. Réessaie dans quelques minutes.' }, 429);
     }
     console.error(err);
     return repondre({ erreur: 'Erreur interne' }, 500);

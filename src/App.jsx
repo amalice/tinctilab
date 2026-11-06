@@ -1,7 +1,9 @@
 import { HashRouter as Router, Routes, Route, Navigate, Link, NavLink, useLocation } from 'react-router-dom';
-import { supabase } from './supabaseClient';
+import { supabase, lienAuth } from './supabaseClient';
 import { useEffect, useState, createContext } from 'react';
 import Login from './pages/Login';
+import MotDePasseOublie from './pages/MotDePasseOublie';
+import DefinirMotDePasse from './pages/DefinirMotDePasse';
 import Home from './pages/Home';
 import Admin from './pages/Admin';
 import Tuto from './pages/Tuto';
@@ -37,10 +39,10 @@ const RetourEnHaut = () => {
   return null;
 };
 
-const initiales = (email) => {
-  if (!email) return '?';
-  const nom = email.split('@')[0];
-  const parties = nom.split(/[._-]+/).filter(Boolean);
+const initiales = (nomAffiche, email) => {
+  const nom = (nomAffiche || '').trim() || (email || '').split('@')[0];
+  if (!nom) return '?';
+  const parties = nom.split(/[\s._-]+/).filter(Boolean);
   if (parties.length >= 2) return (parties[0][0] + parties[1][0]).toUpperCase();
   return nom.slice(0, 2).toUpperCase();
 };
@@ -56,6 +58,10 @@ function App() {
   const [loadingProjets, setLoadingProjets] = useState(false);
   const [isProjetMenuOpen, setIsProjetMenuOpen] = useState(false);
   const [isCompteMenuOpen, setIsCompteMenuOpen] = useState(false);
+  // Étape imposée après un lien reçu par e-mail : 'invitation', 'reinitialisation' ou null
+  const [etapeLien, setEtapeLien] = useState(
+    lienAuth.type === 'invite' ? 'invitation' : lienAuth.type === 'recovery' ? 'reinitialisation' : null
+  );
 
   // Récupérer la session
   useEffect(() => {
@@ -63,8 +69,10 @@ function App() {
       setSession(session);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
+      if (event === 'PASSWORD_RECOVERY') setEtapeLien('reinitialisation');
+      if (event === 'SIGNED_OUT') setEtapeLien(null);
     });
 
     return () => subscription.unsubscribe();
@@ -151,6 +159,12 @@ function App() {
     setShowCreerProjetModal(true);
   };
 
+  // Tant que la personne invitée n'a pas choisi son mot de passe, on lui présente
+  // cet écran (même si elle revient plus tard avec la session ouverte par le lien).
+  const invitationEnAttente = session?.user?.user_metadata?.invitation_en_attente === true;
+  const etapeCompte = session ? (invitationEnAttente ? 'invitation' : etapeLien) : null;
+  const nomUtilisateur = session?.user?.user_metadata?.nom || '';
+
   const handleProjetCreated = () => {
     // Rafraîchir la liste des projets
     window.location.reload();
@@ -159,213 +173,226 @@ function App() {
   return (
     <Router>
       <RetourEnHaut />
-      {session && (
-        <header className="navbar no-print border-b border-lin-500 bg-lin">
-          <div className="max-w-6xl mx-auto px-6 py-4 flex flex-wrap items-center gap-4">
-            <Link to="/" className="mr-4 no-underline">
-              <Logo />
-            </Link>
+      {etapeCompte ? (
+        <DefinirMotDePasse mode={etapeCompte} user={session.user} onTermine={() => setEtapeLien(null)} />
+      ) : (
+        <>
+        {session && (
+          <header className="navbar no-print border-b border-lin-500 bg-lin">
+            <div className="max-w-6xl mx-auto px-6 py-4 flex flex-wrap items-center gap-4">
+              <Link to="/" className="mr-4 no-underline">
+                <Logo />
+              </Link>
 
-            <nav aria-label={t('nav.principale')} className="flex flex-wrap gap-1 flex-1">
-              {liensNav.filter((lien) => !lien.edition || peutEditer).map((lien) => (
-                <NavLink key={lien.to} to={lien.to} end={lien.end} className={classeLien}>
-                  {t(lien.cle)}
-                </NavLink>
-              ))}
-            </nav>
+              <nav aria-label={t('nav.principale')} className="flex flex-wrap gap-1 flex-1">
+                {liensNav.filter((lien) => !lien.edition || peutEditer).map((lien) => (
+                  <NavLink key={lien.to} to={lien.to} end={lien.end} className={classeLien}>
+                    {t(lien.cle)}
+                  </NavLink>
+                ))}
+              </nav>
 
-            {/* Menu déroulant pour la sélection de projet */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsProjetMenuOpen(!isProjetMenuOpen);
-                  setIsCompteMenuOpen(false);
-                }}
-                aria-expanded={isProjetMenuOpen}
-                className="flex items-center gap-2 h-11 px-4 rounded-full border border-lin-600 bg-lin-50 text-sm font-medium text-encre hover:border-sauge"
-              >
-                <span className={`w-2 h-2 rounded-full ${projetNom ? 'bg-sauge-point' : 'bg-lin-600'}`} />
-                {projetNom || t('projet.selectionner')}
-                <Icone.Chevron />
-              </button>
-              {isProjetMenuOpen && (
-                <div className="absolute right-0 mt-2 w-60 rounded-2xl border border-lin-500 bg-lin-50 shadow-lg z-20 p-1.5">
-                  {loadingProjets ? (
-                    <div className="px-3 py-2 text-sm text-encre-500">{t('projet.chargement')}</div>
-                  ) : projets.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-encre-500">{t('projet.aucun')}</div>
-                  ) : (
-                    projets.map((droit) => (
-                      <button
-                        type="button"
-                        key={droit.projet_id}
-                        onClick={() => {
-                          handleSelectProjet(droit.projets.id, droit.projets.nom);
-                          setIsProjetMenuOpen(false);
-                        }}
-                        className={`block w-full text-left px-3 py-2.5 rounded-xl text-sm hover:bg-lin-300 ${
-                          droit.projets.id === projetId ? 'font-medium text-encre' : 'text-encre-600'
-                        }`}
-                      >
-                        {droit.projets.nom}
-                      </button>
-                    ))
-                  )}
-                  {isAdmin && (
-                    <div className="mt-1 pt-1 border-t border-lin-400">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsProjetMenuOpen(false);
-                          handleCreerProjet();
-                        }}
-                        className="flex items-center gap-2 w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-sauge hover:bg-lin-300"
-                      >
-                        <Icone.Plus width="16" height="16" />
-                        {t('projet.creer')}
-                      </button>
+              {/* Menu déroulant pour la sélection de projet */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsProjetMenuOpen(!isProjetMenuOpen);
+                    setIsCompteMenuOpen(false);
+                  }}
+                  aria-expanded={isProjetMenuOpen}
+                  className="flex items-center gap-2 h-11 px-4 rounded-full border border-lin-600 bg-lin-50 text-sm font-medium text-encre hover:border-sauge"
+                >
+                  <span className={`w-2 h-2 rounded-full ${projetNom ? 'bg-sauge-point' : 'bg-lin-600'}`} />
+                  {projetNom || t('projet.selectionner')}
+                  <Icone.Chevron />
+                </button>
+                {isProjetMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-60 rounded-2xl border border-lin-500 bg-lin-50 shadow-lg z-20 p-1.5">
+                    {loadingProjets ? (
+                      <div className="px-3 py-2 text-sm text-encre-500">{t('projet.chargement')}</div>
+                    ) : projets.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-encre-500">{t('projet.aucun')}</div>
+                    ) : (
+                      projets.map((droit) => (
+                        <button
+                          type="button"
+                          key={droit.projet_id}
+                          onClick={() => {
+                            handleSelectProjet(droit.projets.id, droit.projets.nom);
+                            setIsProjetMenuOpen(false);
+                          }}
+                          className={`block w-full text-left px-3 py-2.5 rounded-xl text-sm hover:bg-lin-300 ${
+                            droit.projets.id === projetId ? 'font-medium text-encre' : 'text-encre-600'
+                          }`}
+                        >
+                          {droit.projets.nom}
+                        </button>
+                      ))
+                    )}
+                    {isAdmin && (
+                      <div className="mt-1 pt-1 border-t border-lin-400">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsProjetMenuOpen(false);
+                            handleCreerProjet();
+                          }}
+                          className="flex items-center gap-2 w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-sauge hover:bg-lin-300"
+                        >
+                          <Icone.Plus width="16" height="16" />
+                          {t('projet.creer')}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Choix de la langue */}
+              <ChoixLangue />
+
+              {/* Menu du compte */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCompteMenuOpen(!isCompteMenuOpen);
+                    setIsProjetMenuOpen(false);
+                  }}
+                  aria-label={t('compte.aria')}
+                  aria-expanded={isCompteMenuOpen}
+                  className="w-11 h-11 rounded-full bg-brun text-lin-50 text-sm font-semibold"
+                >
+                  {initiales(nomUtilisateur, session.user?.email)}
+                </button>
+                {isCompteMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-60 rounded-2xl border border-lin-500 bg-lin-50 shadow-lg z-20 p-1.5">
+                    <div className="px-3 py-2 text-sm truncate">
+                      {nomUtilisateur && <div className="font-medium text-encre truncate">{nomUtilisateur}</div>}
+                      <div className="text-encre-500 truncate">{session.user?.email}</div>
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Choix de la langue */}
-            <ChoixLangue />
-
-            {/* Menu du compte */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsCompteMenuOpen(!isCompteMenuOpen);
-                  setIsProjetMenuOpen(false);
-                }}
-                aria-label={t('compte.aria')}
-                aria-expanded={isCompteMenuOpen}
-                className="w-11 h-11 rounded-full bg-brun text-lin-50 text-sm font-semibold"
-              >
-                {initiales(session.user?.email)}
-              </button>
-              {isCompteMenuOpen && (
-                <div className="absolute right-0 mt-2 w-60 rounded-2xl border border-lin-500 bg-lin-50 shadow-lg z-20 p-1.5">
-                  <div className="px-3 py-2 text-sm text-encre-500 truncate">{session.user?.email}</div>
-                  {isAdmin && (
-                    <Link
-                      to="/admin"
-                      onClick={() => setIsCompteMenuOpen(false)}
-                      className="block w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-encre no-underline hover:bg-lin-300"
+                    {isAdmin && (
+                      <Link
+                        to="/admin"
+                        onClick={() => setIsCompteMenuOpen(false)}
+                        className="block w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-encre no-underline hover:bg-lin-300"
+                      >
+                        {t('admin.lien')}
+                      </Link>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCompteMenuOpen(false);
+                        handleLogout();
+                      }}
+                      className="block w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-alerte-texte hover:bg-alerte-fond"
                     >
-                      {t('admin.lien')}
-                    </Link>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsCompteMenuOpen(false);
-                      handleLogout();
-                    }}
-                    className="block w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-alerte-texte hover:bg-alerte-fond"
-                  >
-                    {t('compte.deconnexion')}
-                  </button>
-                </div>
-              )}
+                      {t('compte.deconnexion')}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </header>
-      )}
+          </header>
+        )}
 
-      {showCreerProjetModal && (
-        <CreerProjetModal
-          onClose={() => setShowCreerProjetModal(false)}
-          onProjetCreated={handleProjetCreated}
-        />
-      )}
+        {showCreerProjetModal && (
+          <CreerProjetModal
+            onClose={() => setShowCreerProjetModal(false)}
+            onProjetCreated={handleProjetCreated}
+          />
+        )}
 
-      <ProjetContext.Provider
-        value={{
-          projetId,
-          projetNom,
-          isAdmin,
-          isAdminProjet,
-          roleProjet,
-          peutEditer,
-          projets: projetsAccessibles,
-          selectionnerProjet: handleSelectProjet,
-          setProjetId,
-          setProjetNom,
-        }}
-      >
-        <Routes>
-          <Route path="/login" element={session ? <Navigate to="/" replace /> : <Login />} />
-          <Route
-            path="/"
-            element={
-              <PrivateRoute>
-                <Home />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/nuancier"
-            element={
-              <PrivateRoute>
-                <Home />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/nouvelle-recette"
-            element={
-              <PrivateRoute>
-                <Home />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/recherche-teinte"
-            element={
-              <PrivateRoute>
-                <Home />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/admin"
-            element={
-              <PrivateRoute>
-                <Admin />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/tuto"
-            element={
-              <PrivateRoute>
-                <Tuto />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/recette/:recetteId"
-            element={
-              <PrivateRoute>
-                <Home />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/recette/:recetteId/edit"
-            element={
-              <PrivateRoute>
-                <Home />
-              </PrivateRoute>
-            }
-          />
-        </Routes>
-      </ProjetContext.Provider>
+        <ProjetContext.Provider
+          value={{
+            projetId,
+            projetNom,
+            isAdmin,
+            isAdminProjet,
+            roleProjet,
+            peutEditer,
+            projets: projetsAccessibles,
+            selectionnerProjet: handleSelectProjet,
+            setProjetId,
+            setProjetNom,
+          }}
+        >
+          <Routes>
+            <Route path="/login" element={session ? <Navigate to="/" replace /> : <Login />} />
+            <Route
+              path="/mot-de-passe-oublie"
+              element={session ? <Navigate to="/" replace /> : <MotDePasseOublie />}
+            />
+            <Route
+              path="/"
+              element={
+                <PrivateRoute>
+                  <Home />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/nuancier"
+              element={
+                <PrivateRoute>
+                  <Home />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/nouvelle-recette"
+              element={
+                <PrivateRoute>
+                  <Home />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/recherche-teinte"
+              element={
+                <PrivateRoute>
+                  <Home />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <PrivateRoute>
+                  <Admin />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/tuto"
+              element={
+                <PrivateRoute>
+                  <Tuto />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/recette/:recetteId"
+              element={
+                <PrivateRoute>
+                  <Home />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/recette/:recetteId/edit"
+              element={
+                <PrivateRoute>
+                  <Home />
+                </PrivateRoute>
+              }
+            />
+          </Routes>
+        </ProjetContext.Provider>
+        </>
+      )}
     </Router>
   );
 }

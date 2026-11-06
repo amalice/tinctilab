@@ -119,6 +119,12 @@ export default function Admin() {
     executer({ action: 'retirer', utilisateur_id: membre.utilisateur_id }, t('admin.membreRetire'));
   };
 
+  const renvoyerInvitation = (membre) =>
+    executer(
+      { action: 'renvoyer_invitation', utilisateur_id: membre.utilisateur_id },
+      t('admin.invitationRenvoyee', { email: membre.email }),
+    );
+
   const ajouter = async (e) => {
     e.preventDefault();
     const ok = await executer(
@@ -180,7 +186,14 @@ export default function Admin() {
                           {membre.nom}
                           {membre.utilisateur_id === moi && <span className={cls.muted}> {t('admin.vous')}</span>}
                         </td>
-                        <td className="py-2 px-4">{membre.email}</td>
+                        <td className="py-2 px-4">
+                          {membre.email}
+                          {membre.invitation_en_attente && (
+                            <span className="ml-2 inline-block rounded-full bg-lin-300 px-2.5 py-0.5 text-xs font-medium text-encre-600">
+                              {t('admin.invitationEnAttente')}
+                            </span>
+                          )}
+                        </td>
                         <td className="py-2 px-4">
                           <select
                             aria-label={t('admin.role')}
@@ -194,7 +207,17 @@ export default function Admin() {
                             ))}
                           </select>
                         </td>
-                        <td className="py-2 px-4 text-right">
+                        <td className="py-2 px-4 text-right whitespace-nowrap">
+                          {membre.invitation_en_attente && (
+                            <button
+                              type="button"
+                              disabled={enCours}
+                              onClick={() => renvoyerInvitation(membre)}
+                              className={`${cls.btnSecondaire} mr-2 disabled:opacity-60 disabled:cursor-not-allowed`}
+                            >
+                              {t('admin.renvoyerInvitation')}
+                            </button>
+                          )}
                           <button
                             type="button"
                             disabled={enCours}
