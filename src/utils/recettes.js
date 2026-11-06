@@ -14,7 +14,9 @@ export const CHAMPS_RECETTE = [
     `colorant_${i}_qte_poudre`, `colorant_${i}_dilution`,
   ]),
   // Colonnes « mordant_* » : affichées « Sel de nuançage » dans l'interface
-  ...[1, 2, 3].flatMap((i) => [`mordant_${i}`, `mordant_${i}_dilution`]),
+  ...[1, 2, 3].flatMap((i) => [
+    `mordant_${i}`, `mordant_${i}_fournisseur`, `mordant_${i}_lot`, `mordant_${i}_dilution`,
+  ]),
 ];
 
 // Champs propres à chaque nuance

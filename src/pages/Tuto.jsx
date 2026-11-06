@@ -87,7 +87,7 @@ const fr = {
             lignes={[
               ["Voir le projet, lire les fiches, le nuancier, la recherche par teinte", true, true, true],
               ["Imprimer une fiche", true, true, true],
-              ["Créer une fiche (Nouvelle recette)", true, true, false],
+              ["Créer une fiche (Nouvelle fiche)", true, true, false],
               ["Modifier une fiche", true, true, false],
               ["Supprimer une fiche", true, true, false],
               ["Voir les membres du projet", true, false, false],
@@ -169,9 +169,10 @@ const fr = {
       contenu: (
         <P>
           La fiche présente les six nuances obtenues (aperçu, codes Lab et LCh), les informations générales (nom de
-          l’auteur, date, objet, matière, pH de l’eau, pré-mordançage, montée en température, observations), le bain
-          (rapport de bain, parts totales, colorants avec fournisseur et lot, sels de nuançage), puis les tableaux
-          Nuances, Colorants, Nuançage et le volume d’eau initial pour chaque nuance. La dilution de solution mère
+          l’auteur, date, objet, matière, pH de l’eau, pré-mordançage, montée en température, observations), les
+          ingrédients (rapport de bain, parts totales, colorants avec fournisseur et lot, sels de nuançage), puis les
+          tableaux Recettes, Dosage des colorants, Dosage des sels de nuançage et le volume d’eau à ajouter pour
+          chaque nuance. La dilution de solution mère
           n’est affichée que pour les colorants dilués (dilution différente de 1).
         </P>
       ),
@@ -201,11 +202,11 @@ const fr = {
     },
     {
       id: "nouvelle",
-      titre: "Nouvelle recette",
+      titre: "Nouvelle fiche",
       contenu: (
         <>
           <P>
-            Cliquez <Bouton>Nouvelle recette</Bouton> dans le menu. La fiche vide s’affiche, organisée comme en mode
+            Cliquez <Bouton>Nouvelle fiche</Bouton> dans le menu. La fiche vide s’affiche, organisée comme en mode
             modification. Le numéro de fiche et la date sont obligatoires ; un numéro déjà utilisé dans le projet est
             refusé à l’enregistrement (y compris en modification). Cliquez{" "}
             <Bouton>Enregistrer</Bouton> une fois la fiche remplie.
@@ -231,7 +232,10 @@ const fr = {
       contenu: (
         <P>
           Ouvrez la fiche puis cliquez <Bouton>Imprimer</Bouton> en haut de page. La fenêtre d’impression du
-          navigateur s’ouvre ; le menu et les boutons sont masqués à l’impression.
+          navigateur s’ouvre avec une fiche prête à imprimer : une page A4 en paysage, en niveaux de gris, avec
+          les six nuances côte à côte. Les cases vides peuvent être complétées à la main.
+          <Bouton>Télécharger</Bouton> enregistre la même fiche en PDF. <Bouton>Dupliquer</Bouton> ouvre une
+          nouvelle fiche déjà remplie comme celle-ci : il ne reste qu’à saisir son numéro.
         </P>
       ),
     },
@@ -264,11 +268,11 @@ const fr = {
             <Formule nom="Valeur de la part">profondeur de ton ÷ parts totales</Formule>
             <Formule nom="% colorant">nombre de parts × valeur de la part</Formule>
             <Formule nom="Quantité de colorant">
-              poids du tissu × % colorant ÷ [C] poudre × dilution de la solution mère
+              poids du tissu × % colorant ÷ [F] × dilution de la solution mère
             </Formule>
             <Formule nom="Quantité de sel de nuançage">poids du tissu × % sel ÷ 100 × dilution de la solution mère</Formule>
             <Formule nom="Volume du bain">poids du tissu × n (rapport de bain 1:n)</Formule>
-            <Formule nom="Volume d’eau initial">volume du bain − somme des quantités de colorants et de sels de nuançage</Formule>
+            <Formule nom="Volume d’eau à ajouter">volume du bain − somme des quantités de colorants et de sels de nuançage</Formule>
           </dl>
           <P className="text-sm text-encre-500">
             Les quantités sont en grammes lorsque la dilution vaut 1, en millilitres de solution mère sinon.
@@ -282,8 +286,7 @@ const fr = {
       titreCourt: "Bugs et améliorations",
       contenu: (
         <Liste>
-          <li>Amélioration de la page d’impression.</li>
-          <li>Choix et réinitialisation du mot de passe par les utilisateurs.</li>
+          <li>Aucun pour le moment.</li>
         </Liste>
       ),
     },
@@ -325,7 +328,7 @@ const en = {
             lignes={[
               ["See the project, view recipes, the swatch book and search by shade", true, true, true],
               ["Print a recipe", true, true, true],
-              ["Create a recipe (New recipe)", true, true, false],
+              ["Create a recipe (New recipe card)", true, true, false],
               ["Edit a recipe", true, true, false],
               ["Delete a recipe", true, true, false],
               ["See the project’s members", true, false, false],
@@ -405,9 +408,9 @@ const en = {
       contenu: (
         <P>
           The recipe sheet shows the six shades obtained (preview, Lab and LCh codes), the general details (author’s
-          name, date, purpose, fibre, water pH, pre-mordanting, temperature ramp, notes), the dye bath (liquor ratio,
-          total parts, dyes with supplier and batch, shading salts), then the Shades, Dyes and Shading tables and the
-          initial water volume for each shade. The stock solution dilution is only shown for diluted dyes (dilution
+          name, date, purpose, fibre, water pH, pre-mordanting, temperature ramp, notes), the ingredients (liquor
+          ratio, total parts, dyes with supplier and batch, shading salts), then the Recipes, Dye dosage and Shading
+          salt dosage tables and the volume of water to add for each shade. The stock solution dilution is only shown for diluted dyes (dilution
           other than 1).
         </P>
       ),
@@ -436,11 +439,11 @@ const en = {
     },
     {
       id: "nouvelle",
-      titre: "New recipe",
+      titre: "New recipe card",
       contenu: (
         <>
           <P>
-            Click <Bouton>New recipe</Bouton> in the menu. A blank recipe sheet opens, laid out like the edit view. The
+            Click <Bouton>New recipe card</Bouton> in the menu. A blank recipe sheet opens, laid out like the edit view. The
             recipe number and date are required; a number already used in the project is rejected when saving
             (including when editing). Click{" "}
             <Bouton>Save</Bouton> once the sheet is filled in.
@@ -464,8 +467,10 @@ const en = {
       titre: "Printing a recipe",
       contenu: (
         <P>
-          Open the recipe and click <Bouton>Print</Bouton> at the top of the page. The browser’s print window opens;
-          the menu and buttons are hidden when printing.
+          Open the recipe and click <Bouton>Print</Bouton> at the top of the page. The browser’s print window opens
+          with a print-ready sheet: one A4 landscape page, in greyscale, with the six shades side by side. Empty
+          boxes can be filled in by hand. <Bouton>Download</Bouton> saves the same sheet as a PDF.
+          <Bouton>Duplicate</Bouton> opens a new recipe card filled in like this one: you only need to enter its number.
         </P>
       ),
     },
@@ -496,10 +501,10 @@ const en = {
           <dl className={`${cls.carte} m-0 px-5 py-2`}>
             <Formule nom="Value of one part">depth of shade ÷ total parts</Formule>
             <Formule nom="Dye %">number of parts × value of one part</Formule>
-            <Formule nom="Dye amount">fabric weight × dye % ÷ [C] powder × stock solution dilution</Formule>
+            <Formule nom="Dye amount">fabric weight × dye % ÷ [F] × stock solution dilution</Formule>
             <Formule nom="Shading salt amount">fabric weight × salt % ÷ 100 × stock solution dilution</Formule>
             <Formule nom="Bath volume">fabric weight × n (liquor ratio 1:n)</Formule>
-            <Formule nom="Initial water volume">bath volume − sum of dye and shading salt amounts</Formule>
+            <Formule nom="Volume of water to add">bath volume − sum of dye and shading salt amounts</Formule>
           </dl>
           <P className="text-sm text-encre-500">
             Amounts are in grams when the dilution is 1, otherwise in millilitres of stock solution.
@@ -513,8 +518,7 @@ const en = {
       titreCourt: "Bugs and improvements",
       contenu: (
         <Liste>
-          <li>Better print layout.</li>
-          <li>Letting users choose and reset their password.</li>
+          <li>None at the moment.</li>
         </Liste>
       ),
     },

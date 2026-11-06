@@ -17,73 +17,218 @@
   }
 }
 
+/* ===== Fiche recette imprimée (composant FicheImpression) ===== */
+/* Invisible à l'écran : seule la version imprimée l'affiche. */
+.fiche-imp {
+  display: none;
+}
+
 @media print {
-  /* Masquer les boutons */
-  button {
-    display: none !important;
-  }
-
-  /* Masquer le menu du haut */
-  .navbar {
-    display: none !important;
-  }
-
-  /* Masquer les titres marqués avec la classe page-title */
-  .page-title {
-    display: none !important;
-  }
-
-  /* Masquer les éléments marqués avec la classe no-print */
+  /* Masquer le menu, les boutons et tout ce qui est marqué no-print */
+  button,
+  .navbar,
+  .page-title,
   .no-print {
     display: none !important;
   }
 
-  /* Fond blanc à l'impression */
+  html,
   body {
     background: #ffffff !important;
-  }
-
-  /* Réduire les marges et forcer le contenu sur une page */
-  body {
     margin: 0 !important;
     padding: 0 !important;
-    height: 100vh !important;
-    overflow: hidden !important;
   }
 
-  /* Éviter les sauts de page pour les éléments du template */
-  div, p, table, tr, td, th {
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
+  /* ---- Fiche recette : A4 paysage, une page, niveaux de gris ---- */
+  .fiche-imp {
+    display: block;
+    width: 100%;
+    color: #000;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 8.5pt;
+    line-height: 1.2;
+    filter: grayscale(1);
+    /* fonds gris des lignes imprimés même si l'option « graphiques d'arrière-plan » est décochée */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
-  /* Réduire la taille de la police */
-  * {
-    font-size: 12px !important;
-    line-height: 1.2 !important;
+  .fi-haut {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 1.5mm;
+  }
+  .fi-marque {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 10pt;
+    color: #444;
+  }
+  .fi-bain {
+    font-size: 8pt;
+    color: #444;
+  }
+  .fi-sep {
+    display: inline-block;
+    width: 5mm;
   }
 
-  /* Réduire les marges des éléments */
-  div, p, table, tr, td, th {
-    margin: 0 !important;
-    padding: 2px !important;
+  .fi-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  .fi-table th,
+  .fi-table td {
+    border: 0.4pt solid #9a9a9a;
+    padding: 0 1.6mm;
+    height: 5.6mm;
+    vertical-align: middle;
+    text-align: left;
+    font-weight: normal;
+    overflow: hidden;
+  }
+  .fi-table thead th {
+    text-align: center;
+  }
+  .fi-cadre {
+    border: 1pt solid #000;
+  }
+  .fi-gris > td,
+  .fi-gris > th {
+    background: #ececec;
+  }
+  .fi-c {
+    text-align: center !important;
+  }
+  .fi-l {
+    color: #333;
+  }
+  .fi-petit {
+    font-size: 7pt;
+  }
+  .fi-libre {
+    white-space: pre-line;
+  }
+  /* Case de texte libre : hauteur limitée pour garder une seule page */
+  .fi-boite {
+    max-height: 12.8mm; /* 3 lignes en 8,5 pt, 4 lignes en 7 pt */
+    overflow: hidden;
   }
 
-  /* Forcer les tableaux à ne pas dépasser */
-  table {
-    break-inside: auto !important;
-    page-break-inside: auto !important;
+  /* Ligne d'identification */
+  .fi-ident td {
+    height: 7mm;
   }
 
-  /* Adapter la largeur des éléments */
-  .grid, .flex {
-    width: 100% !important;
+  /* Bloc du milieu : informations à gauche, produits à droite */
+  .fi-milieu {
+    display: flex;
+    gap: 0;
+    margin-top: -1pt; /* les cadres se touchent, comme sur le modèle */
+  }
+  .fi-infos {
+    width: 50%;
+    flex: none;
+  }
+  /* les deux moitiés du bloc ont la même hauteur */
+  .fi-produits .fi-table {
+    flex: 1;
+  }
+  .fi-infos td {
+    vertical-align: top;
+    padding-top: 1.2mm;
+  }
+  .fi-infos tr.fi-haute td {
+    height: 14.4mm;
+  }
+  .fi-produits {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    margin-left: -1pt;
+  }
+  .fi-produits .fi-table + .fi-table {
+    margin-top: -1pt;
+  }
+  .fi-produits td {
+    font-size: 8pt;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
-  .print-container {
-    margin: 0 !important;
-    padding: 0 !important;
-    page-break-before: avoid !important;
-    break-before: avoid !important;
+  /* Tableau des nuances */
+  .fi-recette {
+    margin-top: -1pt;
+  }
+  .fi-col-lib {
+    width: 41mm;
+  }
+  .fi-lib {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 8pt;
+  }
+  .fi-titre {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: bold !important;
+    font-size: 9pt;
+  }
+  .fi-recette tr.fi-section > th,
+  .fi-recette tr.fi-section > td {
+    border-top: 1pt solid #000;
+  }
+  .fi-num {
+    font-weight: bold !important;
+  }
+  /* Sous-colonnes % / Quantité / Unité : séparateur fin à l'intérieur d'une nuance */
+  .fi-recette .fi-sc {
+    font-size: 7pt;
+    color: #333;
+    text-align: center;
+    padding: 0 0.5mm;
+  }
+  .fi-recette td:not([colspan]),
+  .fi-recette th.fi-sc {
+    border-left-color: #d4d4d4;
+    border-right-color: #d4d4d4;
+    padding: 0 0.5mm;
+    font-size: 8pt;
+  }
+  /* En bordures fusionnées, c'est la bordure droite de la case de gauche qui l'emporte */
+  .fi-recette .fi-sc-fin {
+    border-right-color: #9a9a9a !important;
+  }
+  /* Une seule ligne par case : la hauteur du tableau ne dépend pas du contenu */
+  .fi-recette td {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .fi-colorimetrie > th,
+  .fi-colorimetrie > td {
+    height: 9mm;
+  }
+
+  /* « Nombre de parts » : trois cases par nuance (une par colorant) */
+  .fi-cases {
+    display: inline-flex;
+    gap: 1.2mm;
+  }
+  .fi-case {
+    display: inline-block;
+    width: 9mm;
+    height: 4.2mm;
+    line-height: 4.2mm;
+    border: 0.6pt solid #555;
+    background: #fff;
+    text-align: center;
+    font-size: 8pt;
+  }
+
+  /* À l'impression, la fiche imprimée remplace la vue écran */
+  .vue-ecran-fiche {
+    display: none !important;
   }
 }

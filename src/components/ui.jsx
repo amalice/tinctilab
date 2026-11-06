@@ -67,7 +67,7 @@ export const Message = ({ children, erreur = false }) => (
 
 // Fenêtre d'alerte (pop-up) : un titre, un message et un bouton pour fermer.
 // Se ferme avec le bouton, la touche Échap ou un clic sur le fond.
-export const FenetreAlerte = ({ titre, children, onFermer }) => {
+export const FenetreAlerte = ({ titre, children, onFermer, libelleBouton }) => {
   const t = useT();
   const bouton = useRef(null);
 
@@ -98,7 +98,7 @@ export const FenetreAlerte = ({ titre, children, onFermer }) => {
         <p id="fenetre-alerte-message" className="m-0 text-[15px] leading-relaxed text-encre-700">{children}</p>
         <div className="flex justify-end">
           <button ref={bouton} type="button" onClick={onFermer} className={cls.btnPrimaire}>
-            {t('commun.compris')}
+            {libelleBouton || t('commun.compris')}
           </button>
         </div>
       </div>
@@ -149,6 +149,17 @@ export const Icone = {
   Corbeille: (p) => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true" {...p}>
       <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+    </svg>
+  ),
+  Telecharger: (p) => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...p}>
+      <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
+    </svg>
+  ),
+  Dupliquer: (p) => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true" {...p}>
+      <rect x="8" y="8" width="12" height="12" rx="2" />
+      <path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" />
     </svg>
   ),
   Valider: (p) => (
