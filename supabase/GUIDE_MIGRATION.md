@@ -126,6 +126,6 @@ Quand tout fonctionne : `supabase/sql/02_suppression_anciennes_tables.sql`. Lanc
 
 ## Points restant ouverts
 
-- **Mot de passe des personnes invitées.** L'invitation par e-mail crée le compte et connecte la personne, mais l'application n'a pas encore d'écran « Choisir mon mot de passe » (ni « Mot de passe oublié »). Sans cet écran, la personne ne pourra plus se reconnecter. À ajouter (`supabase.auth.updateUser({ password })`), ou en attendant, créer les comptes toi-même dans Supabase > Authentication avant de les ajouter au projet.
+- **Mot de passe des personnes invitées.** Réglé : voir `GUIDE_INVITATIONS.md` (écran Bienvenue, « Mot de passe oublié ? », renvoi d'invitation).
 - **Premier projet d'un nouveau client.** `creer_projet` est réservée aux personnes déjà administratrices d'un projet (comme le bouton actuel). Pour un nouveau client : tu crées son projet, puis tu l'ajoutes comme Administrateur et tu te retires. À relier plus tard à l'inscription et au paiement.
 - **Table `utilisateurs`.** Elle n'est plus utilisée par l'application : vérifier ses règles RLS, ou la supprimer.
