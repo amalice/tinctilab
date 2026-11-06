@@ -2,8 +2,10 @@ import React, { useState, useEffect, Fragment } from 'react';
 import { supabase } from '../supabaseClient';
 import { formaterDate, CHAMPS_RECETTE, CHAMPS_COULEUR, extraire, TABLE_RECETTES } from '../utils/recettes';
 import { labVersLch, labComplet, hexNuance } from '../utils/couleurs';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { cls, Icone, PastilleNuance, Chargement, Message, fondCouleur } from './ui';
+import FicheImpression from './FicheImpression';
+import { construireFiche } from '../utils/ficheImprimable';
 import { useLangue, useNombre } from '../i18n';
 
 const RecetteView = ({ projetId, projetNom, recetteId, onEdit, peutModifier = false, peutSupprimer = false }) => {
@@ -13,6 +15,7 @@ const RecetteView = ({ projetId, projetNom, recetteId, onEdit, peutModifier = fa
   const [error, setError] = useState('');
   const [suppression, setSuppression] = useState(false);
   const [erreurSuppression, setErreurSuppression] = useState('');
+  const [telechargement, setTelechargement] = useState(false);
   const navigate = useNavigate();
   const { t, langue } = useLangue();
   const aff = useNombre(); // virgule ou point décimal selon la langue
@@ -143,13 +146,11 @@ const RecetteView = ({ projetId, projetNom, recetteId, onEdit, peutModifier = fa
 
   const indexColorants = [1, 2, 3].filter((i) => recette[`colorant_${i}`]);
   const indexMordants = [1, 2, 3].filter((i) => recette[`mordant_${i}`]);
-  // La dilution de solution mère n'est pas « utilisée » quand elle vaut 1 (ou est vide) :
-  // on ne l'affiche que pour les colorants dilués, et la colonne disparaît si aucun ne l'est.
-  const dilutionUtilisee = (i) => {
-    const d = recette[`colorant_${i}_dilution`];
-    return d !== null && d !== undefined && d !== '' && Number(d) !== 1;
-  };
-  const afficherDilution = indexColorants.some(dilutionUtilisee);
+  // Fournisseur et lot, affichés sous le nom du colorant ou du sel
+  const provenance = (prefixe) => [
+    recette[`${prefixe}_fournisseur`],
+    recette[`${prefixe}_lot`] && t('fiche.lotN', { lot: recette[`${prefixe}_lot`] }),
+  ].filter(Boolean).join(' · ');
   const codeCouleur = (valeurs) =>
     valeurs.every((v) => v !== null && v !== undefined && v !== '') ? valeurs.join(', ') : '—';
   const nombre = (v, decimales) =>
@@ -227,24 +228,62 @@ const RecetteView = ({ projetId, projetNom, recetteId, onEdit, peutModifier = fa
     </div>
   );
 
+  // Calculs partagés avec la version imprimée (mêmes valeurs qu'à l'écran)
+  const calculs = {
+    pourcentColorant: calculatePourcentColorant,
+    quantiteColorant: calculateQuantiteColorant,
+    quantiteMordant: calculateQuantiteMordant,
+    volumeBain: (c) => calculateVolumeDuBain(c.poids_tissu),
+    volumeEau: volumeEauInitial,
+    unite: getUnite,
+  };
+
+  // Contenu de la fiche imprimable : le même pour l'impression et le PDF téléchargé
+  const fiche = construireFiche({ recette, couleurs, projetNom, calculs, t, aff, langue });
+
+  const telecharger = async () => {
+    setTelechargement(true);
+    setErreurSuppression('');
+    try {
+      const { genererFichePdf, telechargerPdf } = await import('../utils/fichePdf');
+      const titre = t('commun.fiche', { n: recette.numero_fiche });
+      const octets = await genererFichePdf(fiche, { titre });
+      const nom = String(recette.numero_fiche || 'recette').replace(/[^\w.-]+/g, '_');
+      telechargerPdf(octets, `${t('fiche.nomFichierPdf')}-${nom}.pdf`);
+    } catch (err) {
+      console.error(err);
+      setErreurSuppression(t('fiche.erreurTelechargement', { message: err.message }));
+    } finally {
+      setTelechargement(false);
+    }
+  };
+
   return (
-    <div className={`${cls.page} print-container flex flex-col gap-12 print:gap-2`}>
+    <>
+    <FicheImpression fiche={fiche} />
+    <div className={`${cls.page} vue-ecran-fiche flex flex-col gap-12`}>
       {/* ===== EN-TÊTE ===== */}
       <div className="flex flex-col gap-5">
-        <nav aria-label={t('commun.filAriane')} className="no-print flex gap-2 text-sm text-encre-500">
-          <Link to="/nuancier" className="text-sauge hover:text-sauge-fonce">{t('nav.nuancier')}</Link>
-          <span aria-hidden="true">/</span>
-          <span>{t('commun.fiche', { n: recette.numero_fiche })}</span>
-        </nav>
         <div className="flex flex-wrap gap-6 justify-between items-end">
           <div className="flex flex-col gap-2.5">
-            <p className="m-0 text-sm text-encre-500">{t('fiche.sousTitre', { date: formaterDate(recette.date, langue) })}</p>
             <h1 className="m-0 font-serif font-normal text-[52px] tracking-tight">{t('commun.fiche', { n: recette.numero_fiche })}</h1>
           </div>
           <div className="flex gap-2.5">
             <button type="button" onClick={() => window.print()} className={cls.btnSecondaire}>
               <Icone.Imprimante />{t('fiche.imprimer')}
             </button>
+            <button type="button" onClick={telecharger} disabled={telechargement} className={`${cls.btnSecondaire} disabled:opacity-60`}>
+              <Icone.Telecharger />{telechargement ? t('fiche.telechargementEnCours') : t('fiche.telecharger')}
+            </button>
+            {peutModifier && (
+              <button
+                type="button"
+                onClick={() => navigate('/nouvelle-recette', { state: { dupliquer: recetteId } })}
+                className={cls.btnSecondaire}
+              >
+                <Icone.Dupliquer />{t('fiche.dupliquer')}
+              </button>
+            )}
             {peutSupprimer && (
               <button type="button" onClick={supprimerFiche} disabled={suppression} className={cls.btnDanger}>
                 <Icone.Corbeille />{suppression ? t('fiche.suppressionEnCours') : t('fiche.supprimer')}
@@ -269,7 +308,7 @@ const RecetteView = ({ projetId, projetNom, recetteId, onEdit, peutModifier = fa
         {couleurs.map((c) => (
           <div key={c.couleur_numero} className="flex flex-col gap-2.5">
             <div
-              className="relative h-36 print:h-10 rounded-[14px] border border-black/5"
+              className="relative h-36 rounded-[14px] border border-black/5"
               style={fondCouleur(hexNuance(c))}
             >
               <span className="absolute top-2.5 left-2.5 w-7 h-7 rounded-full bg-lin-50/90 flex items-center justify-center text-[13px] font-semibold">
@@ -323,35 +362,27 @@ const RecetteView = ({ projetId, projetNom, recetteId, onEdit, peutModifier = fa
               <tr className="text-left text-encre-500">
                 <th className="py-2 font-medium text-[13px]">{t('fiche.colorant')}</th>
                 <th className="py-2 font-medium text-[13px] text-right">{t('fiche.poudre')}</th>
-                {afficherDilution && (
-                  <th className="py-2 font-medium text-[13px] text-right">{t('fiche.dilution')}</th>
-                )}
+                <th className="py-2 font-medium text-[13px] text-right">{t('fiche.dilution')}</th>
               </tr>
             </thead>
             <tbody>
               {indexColorants.length === 0 && (
-                <tr className="border-t border-lin-400"><td colSpan={afficherDilution ? 3 : 2} className="py-2.5 text-encre-500">—</td></tr>
+                <tr className="border-t border-lin-400"><td colSpan="3" className="py-2.5 text-encre-500">—</td></tr>
               )}
-              {indexColorants.map((i) => {
-                const provenance = [
-                  recette[`colorant_${i}_fournisseur`],
-                  recette[`colorant_${i}_lot`] && t('fiche.lotN', { lot: recette[`colorant_${i}_lot`] }),
-                ].filter(Boolean).join(' · ');
-                return (
-                  <tr key={i} className="border-t border-lin-400">
-                    <td className="py-2.5">
-                      {recette[`colorant_${i}`]}
-                      {provenance && <span className="block text-xs text-encre-500">{provenance}</span>}
-                    </td>
-                    <td className="py-2.5 text-right font-mono align-top">{recette[`colorant_${i}_qte_poudre`] || '0'}</td>
-                    {afficherDilution && (
-                      <td className="py-2.5 text-right font-mono align-top">
-                        {dilutionUtilisee(i) ? recette[`colorant_${i}_dilution`] : ''}
-                      </td>
+              {indexColorants.map((i) => (
+                <tr key={i} className="border-t border-lin-400">
+                  <td className="py-2.5">
+                    {recette[`colorant_${i}`]}
+                    {provenance(`colorant_${i}`) && (
+                      <span className="block text-xs text-encre-500">{provenance(`colorant_${i}`)}</span>
                     )}
-                  </tr>
-                );
-              })}
+                  </td>
+                  <td className="py-2.5 text-right font-mono align-top">{recette[`colorant_${i}_qte_poudre`] || '0'}</td>
+                  <td className="py-2.5 text-right font-mono align-top">
+                    {aff(String(recette[`colorant_${i}_dilution`] ?? '')) || '—'}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
           <table className="w-full text-sm">
@@ -367,8 +398,13 @@ const RecetteView = ({ projetId, projetNom, recetteId, onEdit, peutModifier = fa
               )}
               {indexMordants.map((i) => (
                 <tr key={i} className="border-t border-lin-400">
-                  <td className="py-2.5">{recette[`mordant_${i}`]}</td>
-                  <td className="py-2.5 text-right font-mono">{recette[`mordant_${i}_dilution`] || '1'}</td>
+                  <td className="py-2.5">
+                    {recette[`mordant_${i}`]}
+                    {provenance(`mordant_${i}`) && (
+                      <span className="block text-xs text-encre-500">{provenance(`mordant_${i}`)}</span>
+                    )}
+                  </td>
+                  <td className="py-2.5 text-right font-mono align-top">{recette[`mordant_${i}_dilution`] || '1'}</td>
                 </tr>
               ))}
             </tbody>
@@ -483,6 +519,7 @@ const RecetteView = ({ projetId, projetNom, recetteId, onEdit, peutModifier = fa
         </div>
       </section>
     </div>
+    </>
   );
 };
 

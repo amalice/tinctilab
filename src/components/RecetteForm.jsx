@@ -160,18 +160,19 @@ const RECETTE_VIDE = {
 };
 
 // Une nuance vierge : la couleur (Lab / LCh) n'est pas renseignée tant qu'elle n'a pas été mesurée
+// Les cases numériques sont vides (null) : en cliquant dedans, on ne voit que le curseur, sans « 0 ».
 const nuanceVide = (numero) => ({
   couleur_numero: numero,
-  nb_part_colorant_1: 0,
-  nb_part_colorant_2: 0,
-  nb_part_colorant_3: 0,
-  profondeur_ton: 0,
-  poids_tissu: 0,
+  nb_part_colorant_1: null,
+  nb_part_colorant_2: null,
+  nb_part_colorant_3: null,
+  profondeur_ton: null,
+  poids_tissu: null,
   bleu_depart: '',
   info: '',
-  pourcent_mordant_1: 0,
-  pourcent_mordant_2: 0,
-  pourcent_mordant_3: 0,
+  pourcent_mordant_1: null,
+  pourcent_mordant_2: null,
+  pourcent_mordant_3: null,
   couleur_lab_l: null,
   couleur_lab_a: null,
   couleur_lab_b: null,
@@ -180,6 +181,33 @@ const nuanceVide = (numero) => ({
 });
 
 const NB_NUANCES = 6;
+
+// Cases numériques des nuances : vides à l'écran quand elles valent 0, enregistrées à 0 quand elles sont vides
+const CHAMPS_NUMERIQUES_NUANCE = [
+  'nb_part_colorant_1', 'nb_part_colorant_2', 'nb_part_colorant_3',
+  'profondeur_ton', 'poids_tissu',
+  'pourcent_mordant_1', 'pourcent_mordant_2', 'pourcent_mordant_3',
+];
+const zeroVersVide = (nuance) => {
+  const n = { ...nuance };
+  CHAMPS_NUMERIQUES_NUANCE.forEach((champ) => {
+    if (n[champ] === 0 || n[champ] === '0') n[champ] = null;
+  });
+  return n;
+};
+const videVersZero = (nuance) => {
+  const n = { ...nuance };
+  CHAMPS_NUMERIQUES_NUANCE.forEach((champ) => {
+    if (n[champ] === null || n[champ] === undefined || n[champ] === '') n[champ] = 0;
+  });
+  return n;
+};
+// Saisie d'une case numérique : vide → null, sinon nombre (entier pour les parts)
+const lireNombre = (texte, entier = false) => {
+  if (texte === '') return null;
+  const v = entier ? parseInt(texte, 10) : parseFloat(texte);
+  return Number.isFinite(v) ? v : null;
+};
 
 const estNombre = (v) => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));
 
@@ -190,7 +218,12 @@ const nombreOuNull = (v) => {
   return Number.isFinite(n) ? n : null;
 };
 
-const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
+const RecetteForm = ({ projetId, projetNom, recetteId = null, modeleId = null, onSuccess }) => {
+  // modeleId : fiche à dupliquer (bouton « Dupliquer ») ; tout est repris sauf le numéro de fiche
+  const idACharger = recetteId || modeleId;
+  const [numeroModele, setNumeroModele] = useState(null);
+  // Fiche enregistrée : pop-up de confirmation, puis ouverture de la fiche
+  const [ficheEnregistree, setFicheEnregistree] = useState(null);
 
   const [recette, setRecette] = useState(RECETTE_VIDE);
   const [couleurs, setCouleurs] = useState(() =>
@@ -215,26 +248,33 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
   const aff = useNombre(); // virgule ou point décimal selon la langue
 
   useEffect(() => {
-    if (recetteId && projetId) {
+    if (idACharger && projetId) {
       const fetchRecette = async () => {
         try {
           const { data, error } = await supabase
             .from(TABLE_RECETTES)
             .select('*')
             .eq('projet_id', projetId)
-            .eq('recette_id', recetteId)
+            .eq('recette_id', idACharger)
             .order('couleur_numero', { ascending: true });
 
           if (error) throw error;
 
           if (data && data.length > 0) {
-            setRecette(extraire(data[0], CHAMPS_RECETTE));
+            const donnees = extraire(data[0], CHAMPS_RECETTE);
+            if (!recetteId) {
+              // Duplication : nouvelle fiche, numéro à saisir
+              setNumeroModele(donnees.numero_fiche);
+              donnees.numero_fiche = '';
+              setTimeout(() => document.getElementById('f-numero_fiche')?.focus(), 0);
+            }
+            setRecette(donnees);
 
             const newCouleurs = Array.from({ length: NB_NUANCES }, (_, i) => nuanceVide(i + 1));
             data.forEach((row) => {
               const index = row.couleur_numero - 1;
               if (index >= 0 && index < NB_NUANCES) {
-                const nuance = extraire(row, CHAMPS_COULEUR);
+                const nuance = zeroVersVide(extraire(row, CHAMPS_COULEUR));
                 // Fiche enregistrée avant l'ajout du LCh : on le calcule depuis le Lab
                 if (!estNombre(nuance.couleur_lch_c) && estNombre(nuance.couleur_lab_a) && estNombre(nuance.couleur_lab_b)) {
                   const [, C, h] = labVersLch(nuance.couleur_lab_l, nuance.couleur_lab_a, nuance.couleur_lab_b);
@@ -253,7 +293,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
       };
       fetchRecette();
     }
-  }, [recetteId, projetId]);
+  }, [idACharger, projetId, recetteId]);
 
   const handleRecetteChange = (e) => {
     const { name, value } = e.target;
@@ -384,7 +424,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
       )
       .map((couleur) => ({
         ...donneesRecette,
-        ...extraire(couleur, CHAMPS_COULEUR),
+        ...extraire(videVersZero(couleur), CHAMPS_COULEUR),
         id: crypto.randomUUID(),
       }));
 
@@ -398,8 +438,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
 
       if (error) throw error;
 
-      alert(recetteId ? t('form.alerteMaj') : t('form.alerteEnregistree'));
-      if (onSuccess) onSuccess();
+      setFicheEnregistree({ id: finalRecetteId, numero });
     } catch (err) {
       // 23P01 : contrainte d'unicité du numéro de fiche côté Supabase (enregistrement simultané)
       if (err?.code === '23P01') setNumeroEnDouble(String(recette.numero_fiche).trim());
@@ -408,6 +447,20 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Fermeture du pop-up « fiche enregistrée » : ouverture de la fiche en visualisation
+  const fermerConfirmation = () => {
+    const { id } = ficheEnregistree;
+    setFicheEnregistree(null);
+    if (onSuccess) onSuccess(id);
+    else navigate(`/recette/${id}`, { replace: true });
+  };
+
+  // La touche Entrée dans un champ n'enregistre pas la fiche (seuls les boutons le font).
+  // Elle reste utilisable dans les zones de texte (retour à la ligne) et sur les boutons.
+  const bloquerEntree = (e) => {
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT') e.preventDefault();
   };
 
   const annuler = () => {
@@ -434,7 +487,16 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
   const nomsColorants = [1, 2, 3].map((i) => recette[`colorant_${i}`] || t('form.colorantN', { n: i }));
 
   return (
-    <form onSubmit={handleSubmit} className={`${cls.page} flex flex-col gap-8`}>
+    <form onSubmit={handleSubmit} onKeyDown={bloquerEntree} className={`${cls.page} flex flex-col gap-8`}>
+      {ficheEnregistree && (
+        <FenetreAlerte
+          titre={t(recetteId ? 'form.titreMaj' : 'form.titreEnregistree')}
+          onFermer={fermerConfirmation}
+          libelleBouton={t('form.voirFiche')}
+        >
+          {t(recetteId ? 'form.alerteMaj' : 'form.alerteEnregistree', { n: ficheEnregistree.numero })}
+        </FenetreAlerte>
+      )}
       {numeroEnDouble && (
         <FenetreAlerte titre={t('form.titreNumeroExiste')} onFermer={fermerAlerteNumero}>
           {t('form.numeroExiste', { n: numeroEnDouble })}
@@ -456,7 +518,9 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
           <div className="flex flex-col gap-2.5">
             <p className="m-0 inline-flex items-center gap-2 text-sm text-brun">
               <span className="w-2 h-2 rounded-full bg-brun-accent" />
-              {recetteId ? t('form.modeModif') : t('form.nouvelleFiche')}
+              {recetteId
+                ? t('form.modeModif')
+                : numeroModele ? t('form.copieDe', { n: numeroModele }) : t('form.nouvelleFiche')}
             </p>
             <h1 className="m-0 font-serif font-normal text-[52px] tracking-tight">
               {recetteId ? t('commun.fiche', { n: recette.numero_fiche }) : t('form.nouvelleRecette')}
@@ -595,7 +659,12 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
               <span>{t('fiche.mordantNuancage')}</span><span>{t('fiche.dilution')}</span>
             </div>
             {['mordant_1', 'mordant_2', 'mordant_3'].map((mordant, i) => (
-              <div key={mordant} className="grid grid-cols-[2fr_1fr] gap-2">
+              <div
+                key={mordant}
+                role="group"
+                aria-label={t('form.mordantN', { n: i + 1 })}
+                className="grid grid-cols-[2fr_1fr] gap-2 pb-3 border-b border-lin-400 last:border-b-0 last:pb-0"
+              >
                 <input
                   type="text"
                   name={mordant}
@@ -613,6 +682,24 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                   aria-label={t('form.ariaDilMordant', { n: i + 1 })}
                   className={`${cls.inputMono} min-w-0 h-10`}
                   min="1"
+                />
+                <input
+                  type="text"
+                  name={`${mordant}_fournisseur`}
+                  value={recette[`${mordant}_fournisseur`] ?? ''}
+                  onChange={handleRecetteChange}
+                  aria-label={t('form.ariaFournisseurMordant', { n: i + 1 })}
+                  placeholder={t('fiche.fournisseur')}
+                  className={`${cls.input} min-w-0 h-9 text-sm`}
+                />
+                <input
+                  type="text"
+                  name={`${mordant}_lot`}
+                  value={recette[`${mordant}_lot`] ?? ''}
+                  onChange={handleRecetteChange}
+                  aria-label={t('form.ariaLotMordant', { n: i + 1 })}
+                  placeholder={t('fiche.lot')}
+                  className={`${cls.inputMono} min-w-0 h-9 text-sm`}
                 />
               </div>
             ))}
@@ -639,7 +726,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                       key={k}
                       type="number"
                       value={couleur[`nb_part_colorant_${k}`] ?? ''}
-                      onChange={(e) => handleCouleurChange(index, `nb_part_colorant_${k}`, parseInt(e.target.value) || 0)}
+                      onChange={(e) => handleCouleurChange(index, `nb_part_colorant_${k}`, lireNombre(e.target.value, true))}
                       aria-label={t('form.ariaParts', { colorant: nomsColorants[k - 1], n: index + 1 })}
                       className={cls.inputCellule}
                       min="0"
@@ -664,7 +751,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                 <input
                   type="number"
                   value={couleur.profondeur_ton ?? ''}
-                  onChange={(e) => handleCouleurChange(index, 'profondeur_ton', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleCouleurChange(index, 'profondeur_ton', lireNombre(e.target.value))}
                   aria-label={t('form.ariaChamp', { champ: t('fiche.profondeur'), n: index + 1 })}
                   className={cls.inputCellule}
                   min="0"
@@ -680,7 +767,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                 <input
                   type="number"
                   value={couleur.poids_tissu ?? ''}
-                  onChange={(e) => handleCouleurChange(index, 'poids_tissu', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleCouleurChange(index, 'poids_tissu', lireNombre(e.target.value))}
                   aria-label={t('form.ariaChamp', { champ: t('fiche.poids'), n: index + 1 })}
                   className={cls.inputCellule}
                   min="0"
@@ -763,7 +850,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                       <input
                         type="number"
                         value={pourcentage ?? ''}
-                        onChange={(e) => handleCouleurChange(index, `pourcent_mordant_${i}`, parseFloat(e.target.value) || 0)}
+                        onChange={(e) => handleCouleurChange(index, `pourcent_mordant_${i}`, lireNombre(e.target.value))}
                         aria-label={t('form.ariaPourcentMordant', { mordant: recette[`mordant_${i}`] || t('form.mordantMinuscule', { n: i }), n: index + 1 })}
                         className={cls.inputCellule}
                         min="0"

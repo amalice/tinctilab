@@ -6,6 +6,7 @@
     "@supabase/supabase-js": "^2.39.0",
     "autoprefixer": "^10.4.16",
     "chroma-js": "^3.2.0",
+    "pdf-lib": "^1.17.1",
     "postcss": "^8.4.32",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -16,7 +17,7 @@
   "homepage": ".",
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build", 
+    "build": "react-scripts build",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d build -b gh-pages --dest .",
     "test": "react-scripts test",

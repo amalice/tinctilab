@@ -56,7 +56,12 @@ export default function Home() {
         <Nuancier projetId={projetId} projetNom={projetNom} />
       )}
       {mode === 'create' && !editionInterdite && (
-        <RecetteForm projetId={projetId} projetNom={projetNom} />
+        <RecetteForm
+          key={location.key} // formulaire vierge à chaque ouverture (menu ou « Dupliquer »)
+          projetId={projetId}
+          projetNom={projetNom}
+          modeleId={location.state?.dupliquer || null}
+        />
       )}
       {mode === 'search' && (
         <RechercheCouleur
